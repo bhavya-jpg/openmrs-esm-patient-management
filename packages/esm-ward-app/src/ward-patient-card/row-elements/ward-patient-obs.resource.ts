@@ -1,4 +1,5 @@
 import { restBaseUrl, useOpenmrsFetchAll, type Concept } from '@openmrs/esm-framework';
+import { useMemo } from 'react';
 import { type Observation } from '../../types';
 import { type TFunction } from 'i18next';
 import { type ColoredObsTagConfig } from '../../config-schema';
@@ -18,31 +19,46 @@ export function useConceptToTagColorMap(tags: Array<ColoredObsTagConfig> = []) {
   // concept sets to colors. However, we also need to build a map of
   // concepts to colors. This function does that.
 
-  // TODO: We should cache this map to be re-usable app-wide
-  const conceptSetToTagColorMap = new Map<string, string>();
-  for (const tag of tags) {
-    const { color, appliedToConceptSets } = tag;
-    for (const answer of appliedToConceptSets ?? []) {
-      if (!conceptSetToTagColorMap.has(answer)) {
-        conceptSetToTagColorMap.set(answer, color);
+  const tagsHash = JSON.stringify(tags);
+
+  const { conceptSetToTagColorMap, conceptSetUuids } = useMemo(() => {
+    const map = new Map<string, string>();
+    const uuids: string[] = [];
+    for (const tag of tags) {
+      const { color, appliedToConceptSets } = tag;
+      for (const answer of appliedToConceptSets ?? []) {
+        if (!map.has(answer)) {
+          map.set(answer, color);
+        }
+      }
+      if (appliedToConceptSets) {
+        // filter out null/undefined if present in appliedToConceptSets array just in case
+        uuids.push(...appliedToConceptSets.filter(Boolean));
       }
     }
-  }
+    return { conceptSetToTagColorMap: map, conceptSetUuids: uuids };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tagsHash]);
 
-  const conceptSetUuids = tags.flatMap((tag) => tag.appliedToConceptSets);
   const apiUrl = `${restBaseUrl}/concept?references=${conceptSetUuids.join()}&v=${conceptSetCustomRepresentation}`;
   const { data: conceptSets } = useOpenmrsFetchAll<Concept>(apiUrl);
 
-  const conceptToTagColorMap = new Map<string, string>();
-  if (conceptSets) {
-    for (const conceptSet of conceptSets) {
-      for (const concept of conceptSet.setMembers) {
-        if (!conceptToTagColorMap.has(concept.uuid)) {
-          conceptToTagColorMap.set(concept.uuid, conceptSetToTagColorMap.get(conceptSet.uuid));
+  const conceptToTagColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (conceptSets) {
+      for (const conceptSet of conceptSets) {
+        for (const concept of conceptSet.setMembers) {
+          if (!map.has(concept.uuid)) {
+            const mappedColor = conceptSetToTagColorMap.get(conceptSet.uuid);
+            if (mappedColor) {
+                map.set(concept.uuid, mappedColor);
+            }
+          }
         }
       }
     }
-  }
+    return map;
+  }, [conceptSets, conceptSetToTagColorMap]);
 
   return conceptToTagColorMap;
 }
