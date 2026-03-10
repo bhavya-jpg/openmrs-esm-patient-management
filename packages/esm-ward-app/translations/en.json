@@ -10,6 +10,7 @@
   "admitPatient": "Admit patient",
   "admittedTo": "Admitted to {{locationName}}",
   "admitting": "Admitting...",
+  "alreadyAdmitted": "Already admitted",
   "alsoSwap": "Also swap:",
   "alsoTransfer": "Also transfer:",
   "backToSearchResults": "Back to search results",
